@@ -25,7 +25,9 @@ class Minesweeper():
         # Add mines randomly
         while len(self.mines) != mines:
             i = random.randrange(height)
+        # i = 1
             j = random.randrange(width)
+        # j = 1
             if not self.board[i][j]:
                 self.mines.add((i, j))
                 self.board[i][j] = True
@@ -105,27 +107,32 @@ class Sentence():
         """
         Returns the set of all cells in self.cells known to be mines.
         """
-        raise NotImplementedError
+        if len(self.cells) == self.count:
+            return self.cells
 
     def known_safes(self):
         """
         Returns the set of all cells in self.cells known to be safe.
         """
-        raise NotImplementedError
+        if self.count == 0:
+            return self.cells
 
     def mark_mine(self, cell):
         """
         Updates internal knowledge representation given the fact that
         a cell is known to be a mine.
         """
-        raise NotImplementedError
+        if {cell}.issubset(self.cells):
+            self.cells.remove(cell)
+            self.count -= 1
 
     def mark_safe(self, cell):
         """
         Updates internal knowledge representation given the fact that
         a cell is known to be safe.
         """
-        raise NotImplementedError
+        if {cell}.issubset(self.cells):
+            self.cells.remove(cell)
 
 
 class MinesweeperAI():
@@ -182,7 +189,125 @@ class MinesweeperAI():
             5) add any new sentences to the AI's knowledge base
                if they can be inferred from existing knowledge
         """
-        raise NotImplementedError
+        # 1
+        self.moves_made.add(cell)
+
+        # 2
+        self.mark_safe(cell)
+
+        # 3
+        neighbor_cells = set()
+        # if cell is in row 0
+        if cell[0] == 0:
+            neighbor_cells.add((cell[0] + 1, cell[1]))
+            # if cell is in col 0
+            if cell[1] == 0:
+                neighbor_cells.add((cell[0] + 1, cell[1] + 1))
+                neighbor_cells.add((cell[0], cell[1] + 1))
+            # if cell is in last col
+            elif cell[1] == self.width - 1:
+                neighbor_cells.add((cell[0] + 1, cell[1] - 1))
+                neighbor_cells.add((cell[0], cell[1] - 1))
+            else:
+                neighbor_cells.add((cell[0] + 1, cell[1] + 1))
+                neighbor_cells.add((cell[0], cell[1] + 1))
+                neighbor_cells.add((cell[0] + 1, cell[1] - 1))
+                neighbor_cells.add((cell[0], cell[1] - 1))
+        # if cell is in last row
+        elif cell[0] == self.height - 1:
+            neighbor_cells.add((cell[0] - 1, cell[1]))
+            # if cell is in col 0
+            if cell[1] == 0:
+                neighbor_cells.add((cell[0] - 1, cell[1] + 1))
+                neighbor_cells.add((cell[0], cell[1] + 1))
+            # if cell is in last col
+            elif cell[1] == self.width - 1:
+                neighbor_cells.add((cell[0] - 1, cell[1] - 1))
+                neighbor_cells.add((cell[0], cell[1] - 1))
+            else:
+                neighbor_cells.add((cell[0] - 1, cell[1] + 1))
+                neighbor_cells.add((cell[0], cell[1] + 1))
+                neighbor_cells.add((cell[0] - 1, cell[1] - 1))
+                neighbor_cells.add((cell[0], cell[1] - 1))
+        # if cell is in remaining row
+        else:
+            neighbor_cells.add((cell[0] - 1, cell[1]))
+            neighbor_cells.add((cell[0] + 1, cell[1]))
+            # if cell is in col 0
+            if cell[1] == 0:
+                neighbor_cells.add((cell[0] - 1, cell[1] + 1))
+                neighbor_cells.add((cell[0], cell[1] + 1))
+                neighbor_cells.add((cell[0] + 1, cell[1] + 1))
+            # if cell is in last col
+            elif cell[1] == self.width - 1:
+                neighbor_cells.add((cell[0] - 1, cell[1] - 1))
+                neighbor_cells.add((cell[0], cell[1] - 1))
+                neighbor_cells.add((cell[0] + 1, cell[1] - 1))
+            else:
+                neighbor_cells.add((cell[0] - 1, cell[1] + 1))
+                neighbor_cells.add((cell[0], cell[1] + 1))
+                neighbor_cells.add((cell[0] + 1, cell[1] + 1))
+                neighbor_cells.add((cell[0] - 1, cell[1] - 1))
+                neighbor_cells.add((cell[0], cell[1] - 1))
+                neighbor_cells.add((cell[0] + 1, cell[1] - 1))
+
+        unknown_cells = set()
+        neighbor_mines = set()
+        for cell in neighbor_cells:
+            if {cell} < self.mines:
+                neighbor_mines.add(cell)
+            elif {cell} < self.safes:
+                pass
+            else:
+                unknown_cells.add(cell)
+
+        neighbor_sentence = Sentence(unknown_cells, count - len(neighbor_mines))
+        self.knowledge.append(neighbor_sentence)
+
+        # 4
+        knowledge_copy = self.knowledge.copy()
+        for sentence in knowledge_copy:
+            if sentence.known_mines() is not None:
+                known_mines = sentence.known_mines().copy()
+                for mine in known_mines:
+                    self.mark_mine(mine)
+
+            if sentence.known_safes() is not None:
+                known_safes = sentence.known_safes().copy()
+                for safe in known_safes:
+                    self.mark_safe(safe)
+
+        # remove blanks in the knowledge
+        knowledge_copy = self.knowledge.copy()
+        for sentence in knowledge_copy:
+            if len(sentence.cells) == 0:
+                self.knowledge.remove(sentence)
+
+        # de dupe knowledge
+        res = [] 
+        for i in self.knowledge:
+            if i not in res:
+                res.append(i)
+
+        self.knowledge = res
+
+        safe_not_made = self.safes.difference(self.moves_made)
+        print(safe_not_made)
+        # 5
+        knowledge_copy = self.knowledge.copy()
+        for sentence1 in knowledge_copy:
+            for sentence2 in knowledge_copy:
+                if sentence1.cells < sentence2.cells:
+                    new_cells = sentence2.cells.difference(sentence1.cells)
+                    new_count = sentence2.count - sentence1.count
+                    new_sentence = Sentence(new_cells, new_count)
+                    self.knowledge.append(new_sentence)
+
+                elif sentence2.cells < sentence1.cells:
+                    new_cells = sentence1.cells.difference(sentence2.cells)
+                    new_count = sentence1.count - sentence2.count
+                    new_sentence = Sentence(new_cells, new_count)
+                    self.knowledge.append(new_sentence)
 
     def make_safe_move(self):
         """
@@ -193,7 +318,11 @@ class MinesweeperAI():
         This function may use the knowledge in self.mines, self.safes
         and self.moves_made, but should not modify any of those values.
         """
-        raise NotImplementedError
+        safe_cell = None
+        for safe in self.safes:
+            if not {safe}.issubset(self.moves_made):
+                safe_cell = safe
+        return safe_cell
 
     def make_random_move(self):
         """
@@ -202,4 +331,12 @@ class MinesweeperAI():
             1) have not already been chosen, and
             2) are not known to be mines
         """
-        raise NotImplementedError
+        random_cell = None
+        for row in range(self.height):
+            for col in range(self.width):
+                current_cell = (row, col)
+
+                if (not {current_cell}.issubset(self.mines)) and (not {current_cell}.issubset(self.moves_made)):
+                    random_cell = current_cell
+
+        return random_cell
